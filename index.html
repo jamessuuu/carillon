@@ -16,6 +16,15 @@
     --accent: #6ee7b7;
     --accent2: #93c5fd;
     --border: #232838;
+
+    /* One type scale, ratio 1.25. Before this there were seven sizes between
+       0.78 and 1.3rem, including a 0.85 / 0.86 pair nobody can tell apart, and
+       h2 sat SMALLER than body text, which inverts the hierarchy it exists to
+       express. Four steps, each a clear jump. */
+    --fs-meta: 0.8rem;
+    --fs-body: 1rem;
+    --fs-head: 1.25rem;
+    --fs-title: 1.5625rem;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -27,9 +36,9 @@
     display: flex; flex-direction: column; align-items: center;
     padding: 6vh 5vw 5vh; gap: 26px;
   }
-  h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: 0.01em; margin: 0; }
-  h2 { font-size: 0.86rem; font-weight: 600; margin: 0 0 6px; color: var(--ink); }
-  .tagline { color: var(--dim); font-size: 0.9rem; margin: 4px 0 0; text-align: center; }
+  h1 { font-size: var(--fs-title); font-weight: 600; letter-spacing: 0.01em; margin: 0; }
+  h2 { font-size: var(--fs-head); font-weight: 600; margin: 0 0 6px; color: var(--ink); }
+  .tagline { color: var(--dim); font-size: var(--fs-body); margin: 4px 0 0; text-align: center; }
 
   main { width: min(720px, 92vw); display: flex; flex-direction: column; gap: 22px; }
 
@@ -38,11 +47,11 @@
     padding: 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
     text-align: center;
   }
-  .sound-gate p { margin: 0; color: var(--dim); font-size: 0.85rem; }
+  .sound-gate p { margin: 0; color: var(--dim); font-size: var(--fs-meta); }
 
   button, select {
     background: #1a1f2c; color: var(--ink); border: 1px solid #2a3142;
-    border-radius: 8px; padding: 9px 16px; font: inherit; font-size: 0.82rem;
+    border-radius: 8px; padding: 9px 16px; font: inherit; font-size: var(--fs-meta);
     cursor: pointer;
   }
   button:hover, select:hover { border-color: var(--accent2); }
@@ -56,13 +65,13 @@
   }
 
   .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .toolbar .scaleRow { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 0.78rem; }
-  .status { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
+  .toolbar .scaleRow { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: var(--fs-meta); }
+  .status { color: var(--dim); font-size: var(--fs-meta); margin-left: auto; }
 
   textarea#typingArea {
     width: 100%; min-height: 10em; resize: vertical;
     background: #0e1118; color: var(--ink); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px; font: inherit; font-size: 0.95rem; line-height: 1.5;
+    border-radius: 10px; padding: 14px; font: inherit; font-size: var(--fs-body); line-height: 1.5;
   }
   textarea#typingArea:focus { outline: 2px solid var(--accent2); outline-offset: 1px; }
 
@@ -73,11 +82,11 @@
   .note { flex: 0 0 auto; width: 7px; border-radius: 3px 3px 0 0; transition: transform 120ms ease; }
   .note.pop { transform: scaleY(1.08); }
 
-  .stats { display: flex; justify-content: center; gap: 24px; color: var(--dim); font-size: 0.74rem; }
+  .stats { display: flex; justify-content: center; gap: 24px; color: var(--dim); font-size: var(--fs-meta); }
   .stats b { color: var(--ink); font-weight: 600; }
 
   .privacy {
-    width: min(720px, 92vw); color: var(--dim); font-size: 0.78rem; line-height: 1.6;
+    width: min(720px, 92vw); color: var(--dim); font-size: var(--fs-meta); line-height: 1.6;
     border-top: 1px solid var(--border); padding-top: 18px;
   }
   .privacy strong { color: var(--accent); }
