@@ -60,8 +60,9 @@ clean fixture that passes all of them, plus the real project itself.
 
 ## How to run
 
-Open `index.html` directly in a browser, or serve the folder locally if your
-browser blocks module scripts over `file://`:
+Open [`index.html`](index.html) directly in a browser for a live demo, or
+serve the folder locally if your browser blocks module scripts over
+`file://`:
 
 ```
 python -m http.server 8000
@@ -108,6 +109,34 @@ every fixture actually trips its intended rule).
   browsers commonly refuse to load ES module scripts due to CORS
   restrictions on the `file:` scheme, which is why the "How to run" section
   above recommends a local server.
+
+## Deployment
+
+`vercel.json` sets `"outputDirectory": "."` &mdash; the whole repository,
+not a subfolder &mdash; because two things need to be reachable at once: the
+app itself (`index.html` plus `src/`, at the deployed root, unchanged) and a
+separate landing page (`site/index.html`, at `/site`) that describes the
+project and links back to the app. Vercel cannot hold a comment inside
+`vercel.json` (a non-standard key like `"_comment"` makes the whole file
+invalid), so the reasoning lives here instead:
+
+- `/` &rarr; `index.html`, the real, working app. Nothing about it moved.
+- `/site` &rarr; `site/index.html`, the landing page, in the same
+  proofpage-derived template as this project's siblings.
+- `/README.md` stays reachable too, because the app's own privacy section
+  links to it (`<a href="README.md">`), and that link would otherwise break.
+- Everything else in the repo (`src/`, `verify.mjs`, `tests/`, `LICENSE`,
+  `package.json`) is also served as plain static files under this setting.
+  None of it is sensitive; it is all source a stranger is meant to be able
+  to read, in keeping with what `verify.mjs` already proves about the app.
+
+The Content-Security-Policy in `vercel.json` is one policy shared by every
+path, and it is looser than the other two projects' `default-src 'none'`:
+it adds `script-src 'self'`, because the real app (unlike its landing page)
+loads `<script type="module" src="src/app.mjs">`, a same-origin script the
+page cannot run without permission to execute it. The landing page itself
+still ships zero `<script>` tags; the wider policy exists for the app, not
+because the landing page needed it.
 
 ## License
 
