@@ -1,7 +1,6 @@
 {
   "name": "carillon",
   "version": "0.1.0",
-  "private": true,
   "description": "A keystroke-rhythm sonifier. Typing becomes sound, in the browser. Nothing is uploaded.",
   "type": "module",
   "license": "MIT",
@@ -10,5 +9,22 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "files": [
+    "index.html",
+    "src",
+    "verify.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jamessuuu/carillon.git"
+  },
+  "homepage": "https://github.com/jamessuuu/carillon#readme",
+  "bugs": {
+    "url": "https://github.com/jamessuuu/carillon/issues"
+  },
+  "author": "James Lorenz Santos",
+  "sideEffects": false
 }
