@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>xhr fixture</title></head>
+<body>
+  <p>Fixture proving the "xhr" rule bites.</p>
+  <script>
+    const req = new XMLHttpRequest();
+    req.open('POST', '/collect');
+    req.send('keystrokes');
+  </script>
+</body>
+</html>

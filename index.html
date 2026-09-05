@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>carillon — keystroke rhythm sonifier</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="description" content="Type in the box. The rhythm of your typing becomes sound, in your browser. Nothing you type is uploaded.">
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #0b0d12;
+    --panel: #12151d;
+    --ink: #e9edf5;
+    --dim: #8a93a6;
+    --accent: #6ee7b7;
+    --accent2: #93c5fd;
+    --border: #232838;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 6vh 5vw 5vh; gap: 26px;
+  }
+  h1 { font-size: 1.3rem; font-weight: 600; letter-spacing: 0.01em; margin: 0; }
+  h2 { font-size: 0.86rem; font-weight: 600; margin: 0 0 6px; color: var(--ink); }
+  .tagline { color: var(--dim); font-size: 0.9rem; margin: 4px 0 0; text-align: center; }
+
+  main { width: min(720px, 92vw); display: flex; flex-direction: column; gap: 22px; }
+
+  .sound-gate {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    text-align: center;
+  }
+  .sound-gate p { margin: 0; color: var(--dim); font-size: 0.85rem; }
+
+  button, select {
+    background: #1a1f2c; color: var(--ink); border: 1px solid #2a3142;
+    border-radius: 8px; padding: 9px 16px; font: inherit; font-size: 0.82rem;
+    cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent2); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #06251b; border-color: var(--accent); font-weight: 600; }
+  button.stop { border-color: #f87171; color: #f87171; }
+
+  .stage {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 24px; display: flex; flex-direction: column; gap: 18px;
+  }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .toolbar .scaleRow { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 0.78rem; }
+  .status { color: var(--dim); font-size: 0.78rem; margin-left: auto; }
+
+  textarea#typingArea {
+    width: 100%; min-height: 10em; resize: vertical;
+    background: #0e1118; color: var(--ink); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; font: inherit; font-size: 0.95rem; line-height: 1.5;
+  }
+  textarea#typingArea:focus { outline: 2px solid var(--accent2); outline-offset: 1px; }
+
+  .timeline {
+    height: 96px; display: flex; align-items: flex-end; gap: 3px;
+    border-bottom: 1px solid var(--border); padding-bottom: 8px; overflow-x: auto;
+  }
+  .note { flex: 0 0 auto; width: 7px; border-radius: 3px 3px 0 0; transition: transform 120ms ease; }
+  .note.pop { transform: scaleY(1.08); }
+
+  .stats { display: flex; justify-content: center; gap: 24px; color: var(--dim); font-size: 0.74rem; }
+  .stats b { color: var(--ink); font-weight: 600; }
+
+  .privacy {
+    width: min(720px, 92vw); color: var(--dim); font-size: 0.78rem; line-height: 1.6;
+    border-top: 1px solid var(--border); padding-top: 18px;
+  }
+  .privacy strong { color: var(--accent); }
+  .privacy p { margin: 0 0 10px; }
+  .privacy a { color: var(--accent2); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<h1>carillon</h1>
+<p class="tagline">Type. The rhythm of your typing becomes sound, in this tab, nothing leaves your machine.</p>
+
+<main>
+  <div class="sound-gate" id="soundGate">
+    <p>Sound is off. Typing works either way — nothing plays until you turn it on.</p>
+    <div class="toolbar">
+      <button class="primary" id="startSound" type="button">Start sound</button>
+      <button class="stop" id="stopSound" type="button" disabled>Stop sound</button>
+      <span class="status" id="soundStatus">Sound is off.</span>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="toolbar">
+      <label for="scaleSel">key</label>
+      <select id="scaleSel">
+        <option value="majorPent" selected>C major pentatonic (bright)</option>
+        <option value="minorPent">A minor pentatonic (moody)</option>
+        <option value="dorian">D dorian (open, modal)</option>
+      </select>
+      <button id="clearBtn" type="button">Clear</button>
+    </div>
+
+    <textarea id="typingArea" placeholder="Type here. Anything — a sentence, a password you make up, gibberish. The rhythm is the instrument." aria-label="Typing area"></textarea>
+
+    <div class="timeline" id="timeline" aria-hidden="true"></div>
+
+    <div class="stats">
+      <div>notes: <b id="statNotes">0</b></div>
+      <div>backspaces: <b id="statBackspaces">0</b></div>
+      <div>avg interval: <b id="statAvg">–</b> ms</div>
+    </div>
+  </div>
+</main>
+
+<div class="privacy">
+  <h2>What this does with your keystrokes</h2>
+  <p>
+    <strong>Nothing you type here is transmitted, recorded, or stored anywhere.</strong>
+    Every key you press is timed in this browser tab's own memory — how long since
+    the last key, how long you held this one down — and those two numbers become a
+    pitch and a tone, right here, with the Web Audio API. This page makes no network
+    requests after it loads. Open your browser's network panel and watch: there is
+    nothing to see. Reload the page and every timing is gone. There is no server
+    behind this, no analytics, and no copy of what you typed anywhere but your own
+    screen while you're looking at it.
+  </p>
+  <p>
+    See <a href="README.md">README.md</a> for exactly how the mapping works and what
+    this does and does not claim.
+  </p>
+</div>
+
+<script type="module" src="src/app.mjs"></script>
+</body>
+</html>
