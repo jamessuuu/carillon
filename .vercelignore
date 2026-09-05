@@ -1,0 +1,12 @@
+# The deploy serves the app (index.html + src/) and the landing page (site/).
+# Nothing else needs a public URL, and vercel.json in particular should not be
+# fetchable: it publishes the exact security headers the site relies on.
+# outputDirectory is "." because the app must stay at the root, so the surface
+# is trimmed here rather than by restructuring the app.
+tests/
+package.json
+package-lock.json
+verify.mjs
+vercel.json
+.gitignore
+.vercelignore
