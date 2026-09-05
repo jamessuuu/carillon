@@ -69,8 +69,23 @@ const RULES = [
   },
   {
     id: 'external-src-href',
-    description: 'has a src= or href= pointing at an http(s) URL',
-    test: (text) => /\b(?:src|href)\s*=\s*["'](https?:)\/\//i.test(text),
+    description: 'loads a remote resource: src=, or href= on a <link> that fetches',
+    // The claim this enforces is "the page fetches nothing when it opens", so
+    // it must target what the browser actually LOADS. A <link rel="canonical">
+    // and a plain <a href> issue no request: the first is metadata, the second
+    // waits for a click. Flagging them forbade the page from declaring its own
+    // canonical URL, which broke this project's own site the moment one was
+    // added (2026-09-06). Same category error as treating a navigation as a
+    // fetch, one level down.
+    test: (text) => {
+      if (/\bsrc\s*=\s*["'](?:https?:)?\/\//i.test(text)) return true;
+      const FETCHING = /^(stylesheet|preload|prefetch|preconnect|dns-prefetch|modulepreload|icon|shortcut icon|apple-touch-icon|manifest)$/i;
+      for (const m of text.matchAll(/<link\b([^>]*)>/gi)) {
+        const rel = (m[1].match(/\brel\s*=\s*["']([^"']*)["']/i) || [, ''])[1].trim();
+        if (FETCHING.test(rel) && /\bhref\s*=\s*["'](?:https?:)?\/\//i.test(m[1])) return true;
+      }
+      return false;
+    },
   },
   {
     id: 'cdn-script',
