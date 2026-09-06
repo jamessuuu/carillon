@@ -14,9 +14,66 @@
 
 import { clamp, lerp } from './mapping.mjs';
 
-export function createEngine() {
-  const AudioCtx = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AudioCtx();
+// The two names a Web Audio constructor has ever shipped under, in order of
+// preference: unprefixed (Safari 14.1+, every Chromium, Firefox) before the
+// legacy WebKit prefix (Safari 6 to 14.0). An engine that ships Web Audio at
+// all exposes one of these. An engine that ships none of it (Playwright's
+// WebKit build for Windows, found by the 2026-09-06 sweep: no AudioContext,
+// no webkitAudioContext, no OfflineAudioContext, no AudioNode, nothing)
+// exposes neither, and that case used to fall straight into
+// `new undefined()`: an unhandled "undefined is not a constructor" and a UI
+// that just kept saying "Sound is off".
+export const AUDIO_CONTEXT_NAMES = Object.freeze(['AudioContext', 'webkitAudioContext']);
+
+// Pure lookup. Takes the global object as an argument instead of reaching
+// for `window`, so tests can hand it a Chromium-shaped, an old-Safari-shaped,
+// or a no-Web-Audio-shaped object and prove which branch each one takes
+// without a browser. Returns the constructor and the name it was found
+// under, or nulls when the global has no usable Web Audio constructor.
+export function resolveAudioContextCtor(global = globalThis) {
+  for (const name of AUDIO_CONTEXT_NAMES) {
+    const candidate = global == null ? undefined : global[name];
+    if (typeof candidate === 'function') return { ctor: candidate, name };
+  }
+  return { ctor: null, name: null };
+}
+
+// Thrown by createEngine when no context can be made. `reason` is a stable
+// machine-readable code the UI keys on; `message` is already written for a
+// visitor, and names the actual cause rather than a generic "audio error".
+//   no-web-audio      the engine has no AudioContext under either name
+//   construct-failed  a constructor exists but `new` threw (cause attached)
+export class AudioUnavailableError extends Error {
+  constructor(reason, message, cause) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = 'AudioUnavailableError';
+    this.reason = reason;
+  }
+}
+
+export function createEngine(global = globalThis) {
+  const { ctor: AudioCtx, name } = resolveAudioContextCtor(global);
+  if (!AudioCtx) {
+    throw new AudioUnavailableError(
+      'no-web-audio',
+      'This browser has no Web Audio API: neither AudioContext nor ' +
+        'webkitAudioContext exists here, so there is nothing to make sound with. ' +
+        'Typing still works, silently.',
+    );
+  }
+
+  let ctx;
+  try {
+    ctx = new AudioCtx();
+  } catch (err) {
+    const why = err && err.message ? err.message : String(err);
+    throw new AudioUnavailableError(
+      'construct-failed',
+      `The browser refused to create an audio context (new ${name}() failed: ${why}). ` +
+        'Typing still works, silently.',
+      err,
+    );
+  }
 
   const master = ctx.createGain();
   master.gain.value = 0.85;
@@ -38,8 +95,13 @@ export function createEngine() {
   return { ctx, master, delaySend };
 }
 
+// Resolves to the context's state after the resume attempt. Browsers create
+// contexts suspended until a user gesture, and a resume() that the browser
+// declines can either reject or quietly leave the state where it was; the
+// caller gets the state back so it can say so instead of claiming sound is on.
 export async function resumeEngine(engine) {
   if (engine.ctx.state === 'suspended') await engine.ctx.resume();
+  return engine.ctx.state;
 }
 
 export async function suspendEngine(engine) {

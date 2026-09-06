@@ -10,3 +10,5 @@ verify.mjs
 vercel.json
 .gitignore
 .vercelignore
+README.md
+check-links.mjs

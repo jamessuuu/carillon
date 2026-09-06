@@ -68,6 +68,9 @@
   .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .toolbar .scaleRow { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: var(--fs-meta); }
   .status { color: var(--dim); font-size: var(--fs-meta); margin-left: auto; }
+  /* A failure reason is a sentence, not a badge: give it the whole row and
+     the same red the Stop button already uses for "this ends sound". */
+  .status.error { flex-basis: 100%; margin-left: 0; text-align: left; color: #f87171; }
 
   textarea#typingArea {
     width: 100%; min-height: 10em; resize: vertical;
@@ -119,7 +122,7 @@
     <div class="toolbar">
       <button class="primary" id="startSound" type="button">Start sound</button>
       <button class="stop" id="stopSound" type="button" disabled>Stop sound</button>
-      <span class="status" id="soundStatus">Sound is off.</span>
+      <span class="status" id="soundStatus" role="status" aria-live="polite">Sound is off.</span>
     </div>
   </div>
 
@@ -159,8 +162,8 @@
     screen while you're looking at it.
   </p>
   <p>
-    See <a href="README.md">README.md</a> for exactly how the mapping works and what
-    this does and does not claim.
+    See <a href="https://github.com/jamessuuu/carillon/blob/main/README.md">README.md</a>
+    for exactly how the mapping works and what this does and does not claim.
   </p>
   <!-- attribution-kit v1 -->
   <p class="aj-attribution">

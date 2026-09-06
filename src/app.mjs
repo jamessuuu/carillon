@@ -12,7 +12,7 @@
 // working as an ordinary text area regardless of sound state.
 
 import { DEFAULT_FIRST_INTERVAL_MS, mapKeyEvent } from './mapping.mjs';
-import { createEngine, resumeEngine, suspendEngine, playNote } from './audio.mjs';
+import { AudioUnavailableError, createEngine, resumeEngine, suspendEngine, playNote } from './audio.mjs';
 
 const typingArea = document.getElementById('typingArea');
 const startBtn = document.getElementById('startSound');
@@ -33,15 +33,42 @@ let lastEventAt = null;
 const keyDownAt = new Map();
 let events = [];
 
-function setStatus(text) {
+function setStatus(text, { error = false } = {}) {
   statusEl.textContent = text;
+  statusEl.classList.toggle('error', error);
 }
 
+// Every way sound can fail to start ends in a sentence the visitor can read,
+// naming the actual reason. Before this, a missing Web Audio API threw out of
+// the click handler as an unhandled rejection and the status just kept
+// saying "Sound is off", which is true but explains nothing.
 async function startSound() {
-  if (!engine) engine = createEngine();
-  await resumeEngine(engine);
-  soundOn = true;
   startBtn.disabled = true;
+  try {
+    if (!engine) engine = createEngine();
+    const state = await resumeEngine(engine);
+    if (state !== 'running') {
+      startBtn.disabled = false;
+      setStatus(
+        `Sound did not start: the browser left the audio context "${state}" instead of running it. Click Start sound again.`,
+        { error: true },
+      );
+      return;
+    }
+  } catch (err) {
+    const unavailable = err instanceof AudioUnavailableError;
+    if (unavailable) engine = null;
+    // No Web Audio API at all is not something another click can fix, so
+    // the button stays disabled and the status says why. Anything else
+    // (construction refused, resume rejected) may be transient: re-arm.
+    startBtn.disabled = unavailable && err.reason === 'no-web-audio';
+    const message = unavailable
+      ? err.message
+      : `Sound could not start: ${err && err.message ? err.message : String(err)}`;
+    setStatus(message, { error: true });
+    return;
+  }
+  soundOn = true;
   stopBtn.disabled = false;
   setStatus('Sound is on. Type in the box below.');
 }
