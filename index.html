@@ -36,7 +36,19 @@
 
     --ink:     #eef1f7;
     --ink-2:   #a2abbf;
-    --ink-3:   #6d7688;
+    /* Raised from #6d7688 (2026-09-07). At 11px on --sub-1 that measured
+       4.06:1 against WCAG 1.4.3's 4.5 floor, and it is the token carrying
+       the readout labels, the scope's axis ticks and the figure captions —
+       i.e. the text that makes the quantization claim legible.
+
+       Landed on #7d8699 rather than the first candidate that cleared the
+       floor: that one measured 4.51:1 where this token sits on the .rig
+       panel's gradient at its lightest stop — passing by 0.01, which is not
+       a margin, it is a coincidence waiting for the next token nudge. This
+       clears 4.5 everywhere with room, and is still visibly the muted step
+       below --ink-2. project-gate has no contrast check at all, so none of
+       this was measured until tools/contrast.mjs. */
+    --ink-3:   #7d8699;
 
     /* Amber is the signal: a carillon is a set of bells, and the pitch
        ramp below runs warm-to-cool, so the chrome takes the warm end. */
@@ -329,7 +341,10 @@
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
-  .axis-tick.is-correction { color: hsl(0 100% 71% / 65%); }
+  /* Was hsl(0 100% 71% / 65%) and measured 3.49:1 — the worst node on the
+     page, and it labels the register corrections plot into. Opaque and a
+     step lighter. */
+  .axis-tick.is-correction { color: hsl(0 100% 80%); }
 
   .scope-field {
     position: relative;
