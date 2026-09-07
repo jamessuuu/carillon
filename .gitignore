@@ -8,3 +8,4 @@ Thumbs.db
 # local tooling state, not part of the project
 .firm-pro/
 docs/.serve-url
+docs/.commitmsg
