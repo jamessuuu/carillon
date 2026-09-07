@@ -4,3 +4,7 @@ node_modules/
 Thumbs.db
 
 .vercel
+
+# local tooling state, not part of the project
+.firm-pro/
+docs/.serve-url
