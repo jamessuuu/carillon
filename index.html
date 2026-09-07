@@ -513,12 +513,48 @@
     letter-spacing: 0.02em;
     color: var(--ink-3);
   }
-  .curve { width: 100%; height: 118px; display: block; }
-  .curve .axis { stroke: var(--line); stroke-width: 1; }
-  .curve .step { stroke: var(--signal); stroke-width: 2; fill: none; stroke-linejoin: round; }
-  .curve .ramp { stroke: var(--cool); stroke-width: 2; fill: none; }
-  .curve .ramp-fill { fill: hsl(199 100% 68% / 10%); stroke: none; }
-  .curve .lbl { fill: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
+  .panel-head { margin-bottom: 0.7rem; }
+
+  /* The figures are built from the scope's own parts — same well, same
+     gridlines, same axis ticks, same warm-to-cool ramp — so they read as
+     two more instrument panels rather than two diagrams in cards. They
+     also carry a live marker showing where the last keystroke sits on
+     each mapping, which is what stops them merely restating the scope. */
+  .scope--fig { --scope-h: 170px; }
+
+  .fig-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .fig-step { stroke-width: 2.5; stroke-linecap: round; fill: none; }
+  .fig-riser { stroke: var(--line-2); stroke-width: 1; fill: none; }
+  .fig-ramp { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .fig-ramp--gain { stroke: var(--signal); }
+  .fig-ramp--cut { stroke: var(--cool); }
+  .fig-fill { stroke: none; fill: hsl(199 100% 68% / 9%); }
+
+  .fig-marker {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: hsl(0 0% 100% / 22%);
+    transition: left var(--fast) var(--ease);
+    pointer-events: none;
+  }
+  .fig-dot {
+    position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%; background: var(--note-c, var(--signal));
+    box-shadow: 0 0 0 1px hsl(222 60% 3% / 60%), 0 0 10px -1px var(--note-c, var(--signal));
+    transition: left var(--fast) var(--ease), bottom var(--fast) var(--ease);
+    pointer-events: none;
+  }
+  .fig-xlabel {
+    position: absolute; bottom: 2px;
+    font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--ink-3);
+  }
+
+  /* A dot the pointer is over reports itself into the readout, so the
+     scope and both figures always describe the same keystroke. */
+  .note { cursor: crosshair; }
+  .note.is-probed {
+    box-shadow: 0 0 0 2px var(--ink), 0 0 14px -1px var(--note-c, var(--signal));
+    z-index: 3;
+  }
 
   /* ---------------------------------------------- ledger ------------ */
 
@@ -802,22 +838,36 @@
          mapping the code does not implement. -->
     <div class="grid-2">
       <section class="panel rise rise-3">
-        <h2>Interval sets pitch</h2>
-        <p class="sub">
-          log-mapped, then snapped to <span data-prov="degrees">10</span> targets ·
-          <span data-prov="interval-range">40–900</span>ms
-        </p>
-        <div id="curveInterval"></div>
+        <div class="panel-head">
+          <h2>Interval sets pitch</h2>
+          <p class="sub">
+            log-mapped, then snapped to the same <span data-prov="degrees">10</span> lines ·
+            <span data-prov="interval-range">40–900</span>ms
+          </p>
+        </div>
+        <div class="scope scope--fig">
+          <div class="scope-axis" id="figIntervalAxis" aria-hidden="true"></div>
+          <div class="scope-field" id="figIntervalField" role="img"
+               aria-label="The gap between keys, mapped to scale degree. The map is logarithmic and then rounded, so it forms a staircase: each note occupies a band of intervals.">
+          </div>
+        </div>
       </section>
 
       <section class="panel rise rise-4">
-        <h2>Dwell sets loudness &amp; brightness</h2>
-        <p class="sub">
-          <span data-prov="dwell-range">30–250</span>ms →
-          gain <span data-prov="velocity-range">0.35–1.00</span>,
-          cutoff <span data-prov="cutoff-range">900–4200</span>Hz
-        </p>
-        <div id="curveDwell"></div>
+        <div class="panel-head">
+          <h2>Dwell sets loudness &amp; brightness</h2>
+          <p class="sub">
+            <span data-prov="dwell-range">30–250</span>ms →
+            gain <span data-prov="velocity-range">0.35–1.00</span>,
+            cutoff <span data-prov="cutoff-range">900–4200</span>Hz
+          </p>
+        </div>
+        <div class="scope scope--fig">
+          <div class="scope-axis" id="figDwellAxis" aria-hidden="true"></div>
+          <div class="scope-field" id="figDwellField" role="img"
+               aria-label="How long a key is held, mapped to gain and to lowpass cutoff. Both rise linearly with dwell time.">
+          </div>
+        </div>
       </section>
     </div>
 

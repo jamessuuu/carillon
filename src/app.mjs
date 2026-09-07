@@ -35,6 +35,7 @@ import {
   dwellToVelocity,
   dwellToBrightness,
   lerp,
+  clamp,
 } from './mapping.mjs';
 import { AudioUnavailableError, createEngine, resumeEngine, suspendEngine, playNote } from './audio.mjs';
 
@@ -234,6 +235,7 @@ function renderTrace({ animateLast = false } = {}) {
 /* ------------------------------------------------------------------ */
 
 function updateReadout(ev) {
+  placeMarkers(ev);
   if (!ev) {
     ro.interval.textContent = '—';
     ro.note.textContent = '—';
@@ -325,105 +327,249 @@ function svgEl(name, attrs) {
   return el;
 }
 
-function drawIntervalCurve(host) {
-  const W = 300;
-  const H = 118;
-  const padL = 6;
-  const padR = 6;
-  const padT = 8;
-  const padB = 20;
-  const scaleKey = scaleSel.value;
-  const n = (SCALES[scaleKey] ?? SCALES.majorPent).degrees.length;
+// Figure geometry. The figures deliberately reuse the scope's own parts —
+// the same dark well, the same gridlines, the same axis ticks, the same
+// warm-to-cool degree ramp — so they read as two more instrument panels
+// rather than two diagrams in cards. Each also carries a live marker
+// showing where the last (or currently probed) keystroke sits on that
+// mapping, which is what stops them from merely restating the scope: the
+// scope shows the instances, the figures show the function, and the marker
+// ties one to the other.
+const FIG_LO_Y = 12;
+const FIG_HI_Y = 92;
 
-  const svg = svgEl('svg', { class: 'curve', viewBox: `0 0 ${W} ${H}`, role: 'img' });
-  svg.setAttribute(
-    'aria-label',
-    `Inter-key interval mapped to scale degree: a logarithmic map, then rounded to ${n} steps. ` +
-      `Short intervals give high degrees, long intervals low ones.`,
-  );
-
-  svg.appendChild(svgEl('line', { class: 'axis', x1: padL, y1: H - padB, x2: W - padR, y2: H - padB }));
-
-  const logMin = Math.log(MIN_INTERVAL_MS);
-  const logMax = Math.log(MAX_INTERVAL_MS);
-  const pts = [];
-  const STEPS = 220;
-  for (let i = 0; i <= STEPS; i++) {
-    const ms = Math.exp(logMin + (i / STEPS) * (logMax - logMin));
-    const degree = Math.round(intervalToDegree(ms, scaleKey));
-    const x = padL + (i / STEPS) * (W - padL - padR);
-    const y = H - padB - (degree / (n - 1)) * (H - padT - padB);
-    pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
-  }
-  svg.appendChild(svgEl('polyline', { class: 'step', points: pts.join(' ') }));
-
-  for (const [ms, anchor, dx] of [
-    [MIN_INTERVAL_MS, 'start', 0],
-    [MAX_INTERVAL_MS, 'end', 0],
-  ]) {
-    const t = (Math.log(ms) - logMin) / (logMax - logMin);
-    const x = padL + t * (W - padL - padR) + dx;
-    const lbl = svgEl('text', { class: 'lbl', x, y: H - 7, 'text-anchor': anchor });
-    lbl.textContent = `${ms}ms`;
-    svg.appendChild(lbl);
-  }
-  const mid = svgEl('text', { class: 'lbl', x: W / 2, y: H - 7, 'text-anchor': 'middle' });
-  mid.textContent = 'log scale →';
-  svg.appendChild(mid);
-
-  host.replaceChildren(svg);
+function figY(t) {
+  return FIG_LO_Y + t * (FIG_HI_Y - FIG_LO_Y);
 }
 
-function drawDwellCurve(host) {
-  const W = 300;
-  const H = 118;
-  const padL = 6;
-  const padR = 6;
-  const padT = 8;
-  const padB = 20;
+function logT(ms) {
+  const c = clamp(ms, MIN_INTERVAL_MS, MAX_INTERVAL_MS);
+  const lo = Math.log(MIN_INTERVAL_MS);
+  const hi = Math.log(MAX_INTERVAL_MS);
+  return (Math.log(c) - lo) / (hi - lo);
+}
 
-  const svg = svgEl('svg', { class: 'curve', viewBox: `0 0 ${W} ${H}`, role: 'img' });
-  svg.setAttribute(
-    'aria-label',
-    'Key dwell time mapped to gain and to lowpass cutoff: both rise linearly with how long the key is held.',
-  );
+function xLabel(field, text, leftPct, align) {
+  const el = document.createElement('span');
+  el.className = 'fig-xlabel';
+  el.textContent = text;
+  el.style.left = `${leftPct}%`;
+  if (align === 'end') el.style.transform = 'translateX(-100%)';
+  else if (align === 'mid') el.style.transform = 'translateX(-50%)';
+  field.appendChild(el);
+}
 
-  svg.appendChild(svgEl('line', { class: 'axis', x1: padL, y1: H - padB, x2: W - padR, y2: H - padB }));
+// ---- figure 1: interval -> pitch ------------------------------------
 
-  const STEPS = 60;
+const figInterval = {
+  field: document.getElementById('figIntervalField'),
+  axis: document.getElementById('figIntervalAxis'),
+  marker: null,
+  dot: null,
+};
+
+function drawIntervalFigure() {
+  const { field, axis } = figInterval;
+  if (!field || !axis) return;
+  const scaleKey = scaleSel.value;
+  const scale = SCALES[scaleKey] ?? SCALES.majorPent;
+  const n = scale.degrees.length;
+
+  field.replaceChildren();
+  axis.replaceChildren();
+
+  for (let i = 0; i < n; i++) {
+    const y = figY(i / (n - 1));
+    const line = document.createElement('div');
+    line.className = 'grid-line';
+    line.style.bottom = `${y}%`;
+    field.appendChild(line);
+
+    if (i % 3 === 0 || i === n - 1) {
+      const tick = document.createElement('span');
+      tick.className = 'axis-tick';
+      tick.style.bottom = `${y}%`;
+      tick.textContent = noteName(freqForDegree(scaleKey, i));
+      axis.appendChild(tick);
+    }
+  }
+
+  // The staircase, one coloured run per degree, in the same hue ramp the
+  // notes use. Even step widths on a log x-axis are the visible answer to
+  // "why log": each note gets an equal share of perceived tempo, instead
+  // of ordinary typing being crushed into one band.
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'fig-svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+
+  const STEPS = 400;
+  let runStart = 0;
+  let runDegree = Math.round(intervalToDegree(MIN_INTERVAL_MS, scaleKey));
+  const emit = (x0, x1, degree) => {
+    const y = 100 - figY(degree / (n - 1));
+    const seg = document.createElementNS(SVG_NS, 'line');
+    seg.setAttribute('class', 'fig-step');
+    seg.setAttribute('x1', x0.toFixed(2));
+    seg.setAttribute('x2', x1.toFixed(2));
+    seg.setAttribute('y1', y.toFixed(2));
+    seg.setAttribute('y2', y.toFixed(2));
+    seg.setAttribute('stroke', colorForDegree(degree / (n - 1)));
+    seg.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.appendChild(seg);
+  };
+
+  for (let i = 1; i <= STEPS; i++) {
+    const t = i / STEPS;
+    const ms = Math.exp(
+      Math.log(MIN_INTERVAL_MS) + t * (Math.log(MAX_INTERVAL_MS) - Math.log(MIN_INTERVAL_MS)),
+    );
+    const degree = Math.round(intervalToDegree(ms, scaleKey));
+    if (degree !== runDegree || i === STEPS) {
+      emit(runStart * 100, t * 100, runDegree);
+      const riser = document.createElementNS(SVG_NS, 'line');
+      riser.setAttribute('class', 'fig-riser');
+      riser.setAttribute('x1', (t * 100).toFixed(2));
+      riser.setAttribute('x2', (t * 100).toFixed(2));
+      riser.setAttribute('y1', (100 - figY(runDegree / (n - 1))).toFixed(2));
+      riser.setAttribute('y2', (100 - figY(degree / (n - 1))).toFixed(2));
+      riser.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.appendChild(riser);
+      runStart = t;
+      runDegree = degree;
+    }
+  }
+  field.appendChild(svg);
+
+  const marker = document.createElement('div');
+  marker.className = 'fig-marker';
+  field.appendChild(marker);
+  figInterval.marker = marker;
+
+  const dot = document.createElement('div');
+  dot.className = 'fig-dot';
+  field.appendChild(dot);
+  figInterval.dot = dot;
+
+  xLabel(field, `${MIN_INTERVAL_MS}ms`, 1, 'start');
+  xLabel(field, 'log', 50, 'mid');
+  xLabel(field, `${MAX_INTERVAL_MS}ms`, 99, 'end');
+}
+
+// ---- figure 2: dwell -> gain + cutoff -------------------------------
+
+const figDwell = {
+  field: document.getElementById('figDwellField'),
+  axis: document.getElementById('figDwellAxis'),
+  marker: null,
+  dot: null,
+};
+
+function drawDwellFigure() {
+  const { field, axis } = figDwell;
+  if (!field || !axis) return;
+
+  field.replaceChildren();
+  axis.replaceChildren();
+
+  for (const [t, label] of [[0, 'min'], [0.5, ''], [1, 'max']]) {
+    const y = figY(t);
+    const line = document.createElement('div');
+    line.className = 'grid-line';
+    line.style.bottom = `${y}%`;
+    field.appendChild(line);
+    if (label) {
+      const tick = document.createElement('span');
+      tick.className = 'axis-tick';
+      tick.style.bottom = `${y}%`;
+      tick.textContent = label;
+      axis.appendChild(tick);
+    }
+  }
+
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'fig-svg');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('preserveAspectRatio', 'none');
+
+  const STEPS = 80;
   const gain = [];
   const cut = [];
   for (let i = 0; i <= STEPS; i++) {
     const ms = MIN_DWELL_MS + (i / STEPS) * (MAX_DWELL_MS - MIN_DWELL_MS);
-    const x = padL + (i / STEPS) * (W - padL - padR);
-    const yG = H - padB - dwellToVelocity(ms) * (H - padT - padB);
-    const yC = H - padB - dwellToBrightness(ms) * (H - padT - padB);
-    gain.push(`${x.toFixed(1)},${yG.toFixed(1)}`);
-    cut.push(`${x.toFixed(1)},${yC.toFixed(1)}`);
+    const x = (i / STEPS) * 100;
+    // Gain starts at 0.35, not 0: even the lightest tap is audible. The
+    // figure shows that offset rather than a line through the origin.
+    gain.push(`${x.toFixed(2)},${(100 - figY(dwellToVelocity(ms))).toFixed(2)}`);
+    cut.push(`${x.toFixed(2)},${(100 - figY(dwellToBrightness(ms))).toFixed(2)}`);
   }
-  svg.appendChild(
-    svgEl('polygon', {
-      class: 'ramp-fill',
-      points: `${padL},${H - padB} ${cut.join(' ')} ${W - padR},${H - padB}`,
-    }),
-  );
-  svg.appendChild(svgEl('polyline', { class: 'ramp', points: cut.join(' ') }));
-  svg.appendChild(svgEl('polyline', { class: 'step', points: gain.join(' ') }));
 
-  const l = svgEl('text', { class: 'lbl', x: padL, y: H - 7, 'text-anchor': 'start' });
-  l.textContent = `${MIN_DWELL_MS}ms`;
-  svg.appendChild(l);
-  const r = svgEl('text', { class: 'lbl', x: W - padR, y: H - 7, 'text-anchor': 'end' });
-  r.textContent = `${MAX_DWELL_MS}ms`;
-  svg.appendChild(r);
-  const gl = svgEl('text', { class: 'lbl', x: W - padR, y: 16, 'text-anchor': 'end' });
-  gl.textContent = 'gain';
-  svg.appendChild(gl);
-  const cl = svgEl('text', { class: 'lbl', x: W - padR, y: 28, 'text-anchor': 'end' });
-  cl.textContent = 'cutoff';
-  svg.appendChild(cl);
+  const fill = document.createElementNS(SVG_NS, 'polygon');
+  fill.setAttribute('class', 'fig-fill');
+  fill.setAttribute('points', `0,${100 - figY(0)} ${cut.join(' ')} 100,${100 - figY(0)}`);
+  svg.appendChild(fill);
 
-  host.replaceChildren(svg);
+  for (const [pts, cls] of [[cut, 'fig-ramp fig-ramp--cut'], [gain, 'fig-ramp fig-ramp--gain']]) {
+    const line = document.createElementNS(SVG_NS, 'polyline');
+    line.setAttribute('class', cls);
+    line.setAttribute('points', pts.join(' '));
+    svg.appendChild(line);
+  }
+  field.appendChild(svg);
+
+  const marker = document.createElement('div');
+  marker.className = 'fig-marker';
+  field.appendChild(marker);
+  figDwell.marker = marker;
+
+  const dot = document.createElement('div');
+  dot.className = 'fig-dot';
+  dot.style.setProperty('--note-c', 'var(--signal)');
+  field.appendChild(dot);
+  figDwell.dot = dot;
+
+  xLabel(field, `${MIN_DWELL_MS}ms`, 1, 'start');
+  xLabel(field, 'gain / cutoff', 50, 'mid');
+  xLabel(field, `${MAX_DWELL_MS}ms`, 99, 'end');
+}
+
+// ---- the live markers -----------------------------------------------
+
+function placeMarkers(ev) {
+  const scaleKey = scaleSel.value;
+  const scale = SCALES[scaleKey] ?? SCALES.majorPent;
+  const n = scale.degrees.length;
+
+  if (figInterval.marker && figInterval.dot) {
+    if (!ev) {
+      figInterval.marker.style.opacity = '0';
+      figInterval.dot.style.opacity = '0';
+    } else {
+      const t = logT(ev.intervalMs);
+      const degree = Math.round(intervalToDegree(ev.intervalMs, scaleKey));
+      figInterval.marker.style.opacity = '1';
+      figInterval.dot.style.opacity = '1';
+      figInterval.marker.style.left = `${(t * 100).toFixed(2)}%`;
+      figInterval.dot.style.left = `${(t * 100).toFixed(2)}%`;
+      figInterval.dot.style.bottom = `${figY(degree / (n - 1)).toFixed(2)}%`;
+      figInterval.dot.style.setProperty('--note-c', colorForDegree(degree / (n - 1)));
+    }
+  }
+
+  if (figDwell.marker && figDwell.dot) {
+    if (!ev) {
+      figDwell.marker.style.opacity = '0';
+      figDwell.dot.style.opacity = '0';
+    } else {
+      const t = (clamp(ev.dwellMs, MIN_DWELL_MS, MAX_DWELL_MS) - MIN_DWELL_MS) /
+        (MAX_DWELL_MS - MIN_DWELL_MS);
+      figDwell.marker.style.opacity = '1';
+      figDwell.dot.style.opacity = '1';
+      figDwell.marker.style.left = `${(t * 100).toFixed(2)}%`;
+      figDwell.dot.style.left = `${(t * 100).toFixed(2)}%`;
+      figDwell.dot.style.bottom = `${figY(dwellToVelocity(ev.dwellMs)).toFixed(2)}%`;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -536,8 +682,8 @@ stopBtn.addEventListener('click', () => { stopSound(); });
 scaleSel.addEventListener('change', () => {
   buildScope();
   renderTrace();
-  updateReadout(events[events.length - 1]);
-  drawIntervalCurve(document.getElementById('curveInterval'));
+  drawIntervalFigure();
+  updateReadout(probed ?? events[events.length - 1]);
 });
 
 clearBtn.addEventListener('click', () => {
@@ -598,13 +744,41 @@ function auditNetwork() {
 }
 
 /* ------------------------------------------------------------------ */
+/* the pointer probe                                                   */
+/* ------------------------------------------------------------------ */
+
+let probed = null;
+
+function probeNote(index) {
+  const visible = events.slice(-WINDOW);
+  const ev = index === null ? null : visible[index];
+  probed = ev ?? null;
+  for (const el of plot.querySelectorAll('.note.is-probed')) el.classList.remove('is-probed');
+  if (ev) {
+    const dot = plot.querySelectorAll('.note')[index];
+    if (dot) dot.classList.add('is-probed');
+    updateReadout(ev);
+  } else {
+    updateReadout(events[events.length - 1] ?? null);
+  }
+}
+
+plot.addEventListener('pointerover', (e) => {
+  const note = e.target.closest('.note');
+  if (!note) return;
+  const index = [...plot.querySelectorAll('.note')].indexOf(note);
+  if (index >= 0) probeNote(index);
+});
+plot.addEventListener('pointerleave', () => probeNote(null));
+
+/* ------------------------------------------------------------------ */
 /* boot                                                                */
 /* ------------------------------------------------------------------ */
 
 buildScope();
+drawIntervalFigure();
+drawDwellFigure();
 loadDemoTrace();
-drawIntervalCurve(document.getElementById('curveInterval'));
-drawDwellCurve(document.getElementById('curveDwell'));
 
 // Measured once the load is genuinely finished, so a resource still in
 // flight cannot be missed and counted as zero.
