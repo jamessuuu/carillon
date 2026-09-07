@@ -3,157 +3,49 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>carillon: a keystroke-rhythm sonifier that never leaves your browser</title>
-<meta name="description" content="carillon turns the rhythm of your typing into sound in real time with the Web Audio API. Nothing you type is uploaded, there is no server, and verify.mjs checks that mechanically, not just as a claim."/>
+<title>carillon</title>
+<meta name="robots" content="noindex"/>
 <link rel="canonical" href="https://carillon-psi.vercel.app/"/>
-<meta property="og:title" content="carillon"/>
-<meta property="og:description" content="A keystroke-rhythm sonifier. Nothing you type is uploaded. verify.mjs enforces that mechanically, not just as a claim."/>
-<meta property="og:type" content="website"/>
+<!-- This used to be a separate cream-and-serif landing page describing the
+     app: a static table of the checks verify.mjs runs, and three paragraphs
+     of method. Everything on it now lives on the app page itself, and lives
+     there better — the app shows the live Performance-timeline measurement
+     rather than a table asserting the checks passed, and it shows the
+     quantization happening rather than describing it.
+
+     Two surfaces with two different visual identities for one small tool is
+     worse than one surface, so this redirects. It is kept (rather than
+     deleted) because /site has been a public URL, and a link that has
+     existed should not start answering 404. -->
+<meta http-equiv="refresh" content="0; url=../index.html"/>
 <style>
-  /* One type scale, ratio 1.25. One accent. No webfonts, so this landing
-     page fetches nothing when it opens &mdash; the same claim the app
-     itself makes, and the app enforces it mechanically (verify.mjs), while
-     this page just happens to also be true. */
-  :root {
-    --bg: #fbfaf7;
-    --panel: #ffffff;
-    --ink: #1a1a18;
-    --dim: #5c5b55;
-    --rule: #e2ded4;
-    --accent: #9a5b00;
-    --pass-bg: #eaf6ec; --pass-ink: #116329;
-    --fail-bg: #fdecec; --fail-ink: #8a1f1f;
-    --fs-meta: 0.8rem;
-    --fs-body: 1rem;
-    --fs-head: 1.25rem;
-    --fs-title: 1.5625rem;
-    --fs-hero: 1.953rem;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#16171a; --panel:#1d1f23; --ink:#eceae4; --dim:#a3a199; --rule:#2e3138; --accent:#e0a458; --pass-bg:#12291a; --pass-ink:#7fd39b; --fail-bg:#2b1717; --fail-ink:#f0908c; }
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  :root { color-scheme: dark; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font-family: ui-serif, Georgia, "Times New Roman", serif;
-    font-size: var(--fs-body); line-height: 1.65;
+    margin: 0; min-height: 100vh;
+    display: grid; place-content: center; gap: 1rem;
+    background: #090b10; color: #eef1f7;
+    font-family: ui-sans-serif, system-ui, "Segoe UI Variable Display", "Segoe UI",
+                 Roboto, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    text-align: center; padding: 2rem;
   }
-  code, pre, .mono { font-family: ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace; }
-  .wrap { max-width: 46rem; margin: 0 auto; padding: 4rem 1.25rem 5rem; }
-  header { border-bottom: 1px solid var(--rule); padding-bottom: 1.75rem; margin-bottom: 2.5rem; }
-  h1 { font-size: var(--fs-hero); line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -0.01em; }
-  h2 { font-size: var(--fs-title); line-height: 1.25; margin: 3rem 0 .75rem; }
-  h3 { font-size: var(--fs-head); margin: 2rem 0 .5rem; }
-  .lede { font-size: var(--fs-head); color: var(--dim); margin: 0; }
-  .meta { font-size: var(--fs-meta); color: var(--dim); }
-  a { color: var(--accent); text-underline-offset: 2px; }
-  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  pre {
-    background: var(--panel); border: 1px solid var(--rule); border-radius: 6px;
-    padding: .9rem 1rem; overflow-x: auto; font-size: var(--fs-meta); line-height: 1.6;
-    overflow-wrap: anywhere;
+  p { margin: 0; color: #a2abbf; font-size: 0.9375rem; }
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.6875rem; letter-spacing: 0.12em; text-transform: uppercase; color: #6d7688;
   }
-  .cta { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.75rem 0 0; }
-  .btn {
-    display: inline-block; padding: .55rem 1rem; border-radius: 6px;
-    border: 1px solid var(--rule); background: var(--panel); color: var(--ink);
-    text-decoration: none; font-size: var(--fs-meta);
+  a {
+    display: inline-block; margin-top: 0.5rem;
+    background: linear-gradient(180deg, #f7c85c, #f0b429);
+    color: #2a1c02; font-weight: 650; text-decoration: none;
+    border-radius: 8px; padding: 0.65rem 1.1rem; min-height: 44px;
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 20%), 0 4px 12px -4px hsl(222 60% 3% / 60%);
   }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  @media (prefers-color-scheme: dark) { .btn.primary { color: #16171a; } }
-  .rows { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; margin: 1.25rem 0; }
-  .row { display: flex; gap: .75rem; align-items: baseline; padding: .7rem 1rem; border-top: 1px solid var(--rule); font-size: var(--fs-meta); flex-wrap: wrap; }
-  .row:first-child { border-top: 0; }
-  .tag { font-size: var(--fs-meta); padding: .1rem .5rem; border-radius: 999px; white-space: nowrap; }
-  .tag.pass { background: var(--pass-bg); color: var(--pass-ink); }
-  .tag.fail { background: var(--fail-bg); color: var(--fail-ink); }
-  ul { padding-left: 1.15rem; }
-  li { margin: .4rem 0; }
-  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); font-size: var(--fs-meta); color: var(--dim); }
-  /* attribution-kit v1 — the maker's mark inherits color; the pin takes the site's amber */
-  .aj-attribution { margin: 0; font: inherit; line-height: 1.5; color: inherit; }
-  .aj-attribution__mark { display: inline-block; width: 20px; height: 20px; vertical-align: -0.3em; margin-right: 0.45em; }
-  .aj-attribution__mark--full { width: 48px; height: 48px; vertical-align: middle; }
-  .aj-attribution a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
-  .aj-attribution a:hover { text-decoration-thickness: 2px; }
-  .aj-attribution a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-  .aj-attribution__sep { margin: 0 0.35em; }
-  .aj-attribution { --aj-attribution-signal: var(--accent); }
-  @media print { .cta, footer { display: none } body { background: #fff } }
+  a:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
 </style>
 </head>
 <body>
-<main class="wrap">
-
-<header>
-  <h1>carillon</h1>
-  <p class="lede">Type in a box. The gaps between your keystrokes, and how long you hold each key down, become pitch and loudness &mdash; in your browser, in real time, with the Web Audio API.</p>
-  <div class="cta">
-    <a class="btn primary" href="../index.html">Open the app</a>
-    <a class="btn" href="https://github.com/jamessuuu/carillon">Source</a>
-  </div>
-  <p class="meta" style="margin-top:1rem">MIT. No install to run it. Node 20+ only for the test suite.</p>
-</header>
-
-<h2>Nothing leaves your machine, and that is checked, not claimed</h2>
-
-<p>The app makes no network requests after it loads. That is not a line in
-this description; it is a rule enforced by <code>verify.mjs</code>, which
-scans the shipped page &mdash; <code>index.html</code> plus everything under
-<code>src/</code> &mdash; and fails with a non-zero exit code if it finds any
-of the following:</p>
-
-<div class="rows">
-  <div class="row"><span class="tag pass">checked</span> <code class="mono">fetch(...)</code> <span class="meta">not called anywhere in the shipped page</span></div>
-  <div class="row"><span class="tag pass">checked</span> <code class="mono">XMLHttpRequest, navigator.sendBeacon</code> <span class="meta">not used</span></div>
-  <div class="row"><span class="tag pass">checked</span> <code class="mono">src= / href= pointing at an http(s) URL</code> <span class="meta">none found</span></div>
-  <div class="row"><span class="tag pass">checked</span> <code class="mono">CDN-hosted &lt;script src&gt;, analytics/telemetry identifiers</code> <span class="meta">none found</span></div>
-</div>
-
-<p>Every one of those rules has a dedicated fixture in
-<code>tests/fixtures/verify/</code> that deliberately breaks the page in
-exactly that one way, plus a test proving the rule actually catches it. A
-check that cannot fail is not a check.</p>
-
-<p>The app is also mute-first: it is fully usable, and clearly labeled sound-off,
-before you click &ldquo;Start sound.&rdquo; That click is the only place an
-<code>AudioContext</code> ever gets created, so no sound starts without a
-real user gesture, and a &ldquo;Stop sound&rdquo; button suspends it at any
-time.</p>
-
-<h2>How the sound is built</h2>
-
-<p>Two real, independent signals drive it. <strong>Inter-key interval</strong>
-(time since your last keystroke) sets pitch: fast typing runs high, a pause
-runs low. The interval is log-mapped before it picks a note, because typing
-speed is roughly log-normally distributed, and a straight linear map would
-crush normal typing into a narrow band. <strong>Key dwell time</strong> (how
-long you held a key down) sets loudness and brightness.</p>
-
-<p>Every pitch is quantized to a fixed 2-octave scale &mdash; C major
-pentatonic, A minor pentatonic, or D dorian, picked from a dropdown &mdash;
-so any two notes are consonant no matter what your typing rhythm looks like.
-Backspace gets its own voice: a downward chirp plus filtered noise, a full
-octave below anything a forward keystroke can reach, so a correction always
-sounds distinct from typing.</p>
-
-<h2>What this is not</h2>
-
-<ul>
-  <li>Not a biometric. It does not attempt to identify who is typing, and makes no claim that keystroke rhythm reliably recognizes a person. It is an instrument.</li>
-  <li>Not tuned for every keyboard. The mapping was tuned by ear against one person's typing on one keyboard, and there is no claim it sounds equally good for everyone.</li>
-  <li>Not built for touch. This is tested against a physical keyboard; on-screen keyboards don't produce the same keydown/keyup timing.</li>
-</ul>
-
-<footer>
-  <!-- attribution-kit v1 -->
-  <p class="aj-attribution">
-    <svg class="aj-attribution__mark" viewBox="0 0 32 32" width="20" height="20" role="img" aria-label="Agent James"><path fill="currentColor" d="M1 10h3v4H1zM28 10h3v4h-3zM10 1h4v3h-4zM10 28h4v3h-4zM1 18h3v4H1zM28 18h3v4h-3zM18 1h4v3h-4zM18 28h4v3h-4z"/><path fill="currentColor" fill-rule="evenodd" d="M5 4h22a1 1 0 0 1 1 1v22a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM18.3 9h3.4v8a5.7 5.7 0 0 1-5.7 5.7H12v-3.4h4a2.3 2.3 0 0 0 2.3-2.3z"/><rect x="6.5" y="6.5" width="3.5" height="3.5" fill="var(--aj-attribution-signal, #B45309)"/></svg>Built by <a href="https://agentjames.vercel.app" rel="me noopener">James Lorenz Santos</a><span class="aj-attribution__sep" aria-hidden="true">&middot;</span><a href="https://www.linkedin.com/in/james-lorenz-santos-720776251/" rel="me noopener" target="_blank">LinkedIn</a>
-  </p>
-  <p>Source at <a href="https://github.com/jamessuuu/carillon">github.com/jamessuuu/carillon</a>. MIT.</p>
-</footer>
-
-</main>
+  <p class="eyebrow">carillon</p>
+  <p>This page has moved to the app itself.</p>
+  <a href="../index.html">Open carillon</a>
 </body>
 </html>
