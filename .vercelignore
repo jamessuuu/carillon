@@ -12,3 +12,8 @@ vercel.json
 .vercelignore
 README.md
 check-links.mjs
+# dev-only: screenshots, the provenance writer, the measurement harness.
+# None of it is secret, none of it needs a public URL, and keeping the
+# deploy surface to exactly what a visitor uses is the point.
+tools/
+docs/

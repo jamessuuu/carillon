@@ -5,101 +5,692 @@
 <title>carillon — keystroke rhythm sonifier</title>
 <link rel="canonical" href="https://carillon-psi.vercel.app/"/>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<meta name="description" content="Type in the box. The rhythm of your typing becomes sound, in your browser. Nothing you type is uploaded.">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Type in the box. The rhythm of your typing becomes sound, in your browser. Every note is quantized to the scale, and you can watch it happen. Nothing you type is uploaded.">
+<meta property="og:title" content="carillon"/>
+<meta property="og:description" content="A keystroke-rhythm sonifier. Every note snaps to the scale, on screen, as you type. Nothing you type is uploaded — verify.mjs enforces that mechanically."/>
+<meta property="og:type" content="website"/>
 <link rel="icon" href="data:,">
 <style>
+  /* ============================================================
+     carillon product surface.
+
+     Everything here is inline and self-contained on purpose. The one
+     product claim is that this page fetches nothing when it opens, and
+     verify.mjs fails the build if that stops being true — which rules
+     out a webfont, a CDN stylesheet, and a linked design system alike.
+     So the portfolio's depth language (elevation ladder, 10px structure
+     radius, one easing curve, two durations, a single tinted ambient
+     wash) is re-declared here as tokens rather than imported, and the
+     type contrast is built from the two typeface families every OS
+     already has: a display sans, and a mono for anything measured.
+     ============================================================ */
   :root {
-    --bg: #0b0d12;
-    --panel: #12151d;
-    --ink: #e9edf5;
-    --dim: #8a93a6;
-    --accent: #6ee7b7;
-    --accent2: #93c5fd;
-    --border: #232838;
+    /* --- ground and surfaces: a value ladder, not one flat fill --- */
+    --bg:      #090b10;
+    --sub-1:   #10131b;
+    --sub-2:   #161a24;
+    --sub-3:   #1d222e;
+    --line:    #262c3a;
+    --line-2:  #333a4b;
 
-    /* One type scale, ratio 1.25. Before this there were seven sizes between
-       0.78 and 1.3rem, including a 0.85 / 0.86 pair nobody can tell apart, and
-       h2 sat SMALLER than body text, which inverts the hierarchy it exists to
-       express. Four steps, each a clear jump. */
-    --fs-meta: 0.8rem;
-    --fs-body: 1rem;
-    --fs-head: 1.25rem;
-    --fs-title: 1.5625rem;
+    --ink:     #eef1f7;
+    --ink-2:   #a2abbf;
+    --ink-3:   #6d7688;
+
+    /* Amber is the signal: a carillon is a set of bells, and the pitch
+       ramp below runs warm-to-cool, so the chrome takes the warm end. */
+    --signal:      #f0b429;
+    --signal-soft: #f7c85c;
+    --signal-ink:  #2a1c02;
+    --cool:        #5cc8ff;
+    --alert:       #ff6b6b;
+    --ok:          #4ade80;
+
+    /* Shadows carry chroma. A pure-black shadow on a blue-black ground
+       reads as a hole rather than as a lit object. */
+    --shadow: 222 60% 3%;
+    --elev-1:
+      0 1px 2px -1px hsl(var(--shadow) / 55%),
+      0 4px 12px -4px hsl(var(--shadow) / 60%);
+    --elev-2:
+      0 2px 4px -2px hsl(var(--shadow) / 60%),
+      0 12px 32px -8px hsl(var(--shadow) / 68%);
+    --elev-3:
+      0 4px 8px -4px hsl(var(--shadow) / 65%),
+      0 24px 64px -12px hsl(var(--shadow) / 75%);
+    --edge: inset 0 1px 0 hsl(0 0% 100% / 7%);
+
+    --radius:      10px;
+    --radius-ctl:  8px;
+    --ease:        cubic-bezier(0.16, 1, 0.3, 1);
+    --fast:        140ms;
+    --slow:        420ms;
+
+    --font-display: ui-sans-serif, system-ui, "Segoe UI Variable Display", "Segoe UI",
+                    Roboto, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    /* Serif, for the lead sentence only. Ships on every desktop OS, so it
+       costs nothing to fetch — which is the constraint this whole page is
+       built around. */
+    --font-text: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+
+    /* Display / body / data are three genuinely different sizes, not the
+       0.85-vs-0.86 pair this page used to have. */
+    --fs-display: clamp(2.5rem, 5.6vw, 3.75rem);
+    --fs-lead:    clamp(1rem, 1.5vw, 1.125rem);
+    --fs-body:    0.9375rem;
+    --fs-data:    0.8125rem;
+    --fs-micro:   0.6875rem;
   }
+
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0; min-height: 100%;
-    background: var(--bg); color: var(--ink);
-    font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
-  }
+
+  html { -webkit-text-size-adjust: 100%; }
+
   body {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 6vh 5vw 5vh; gap: 26px;
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--fs-body);
+    line-height: 1.55;
+    /* The document itself never scrolls sideways. The ambient wash below
+       is position:fixed precisely so it cannot widen this box: a purely
+       decorative gradient once bled a page to 437px at a 390 viewport. */
+    overflow-x: hidden;
   }
-  h1 { font-size: var(--fs-title); font-weight: 600; letter-spacing: 0.01em; margin: 0; }
-  h2 { font-size: var(--fs-head); font-weight: 600; margin: 0 0 6px; color: var(--ink); }
-  .tagline { color: var(--dim); font-size: var(--fs-body); margin: 4px 0 0; text-align: center; }
 
-  main { width: min(720px, 92vw); display: flex; flex-direction: column; gap: 22px; }
-
-  .sound-gate {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    padding: 22px 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;
-    text-align: center;
+  /* One ambient wash, thresholded and tinted, at 4-9% — the Linear
+     technique. Fixed, so it participates in no layout and cannot extend
+     the page. No blend mode and no blur: both were measured costing
+     10-15fps on a page with animated children. */
+  .ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(58% 42% at 22% 0%,  hsl(41 87% 55% / 9%),  transparent 68%),
+      radial-gradient(46% 38% at 88% 6%,  hsl(199 100% 68% / 6%), transparent 70%);
   }
-  .sound-gate p { margin: 0; color: var(--dim); font-size: var(--fs-meta); }
 
-  button, select {
-    background: #1a1f2c; color: var(--ink); border: 1px solid #2a3142;
-    border-radius: 8px; padding: 9px 16px; font: inherit; font-size: var(--fs-meta);
+  .shell {
+    position: relative;
+    z-index: 1;
+    width: min(1180px, 100% - 3rem);
+    margin: 0 auto;
+    padding: 2.25rem 0 4rem;
+  }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  /* ---------------------------------------------- masthead ---------- */
+
+  .masthead { margin-bottom: 1.5rem; }
+
+  .eyebrow {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin: 0 0 0.85rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .eyebrow .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--signal);
+    box-shadow: 0 0 0 3px hsl(41 87% 55% / 18%);
+    flex: none;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: var(--fs-display);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 0.95;
+    /* Solid, deliberately. A gradient-filled heading is one of the most
+       reliable tells of a generated page, and it buys nothing here: the
+       hierarchy is already carried by size and tracking. */
+    color: var(--ink);
+  }
+
+  h1 em {
+    font-style: normal;
+    /* One solid accent on the phrase that carries the claim. Solid, not a
+       gradient: the reference surface does exactly this. */
+    color: var(--signal);
+  }
+
+  /* The third face, and a real one: a serif carries the lead sentence, so
+     display / body / data are three visibly different typefaces rather
+     than three sizes of the same one. Every family here already exists on
+     the machine — a webfont would be a network request, and this page's
+     one product claim is that it makes none. */
+  .claim {
+    margin: 0.9rem 0 0;
+    max-width: 62ch;
+    font-family: var(--font-text);
+    font-size: var(--fs-lead);
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  .chips {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    margin: 1.15rem 0 0; padding: 0; list-style: none;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: 999px;
+    background: var(--sub-2);
+    box-shadow: var(--edge), var(--elev-1);
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+    white-space: nowrap;
+    transition: box-shadow var(--fast) var(--ease), transform var(--fast) var(--ease),
+                color var(--fast) var(--ease);
+  }
+  .chip:hover { transform: translateY(-1px); box-shadow: var(--edge), var(--elev-2); color: var(--ink); }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip::before {
+    content: "";
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--ink-3);
+    flex: none;
+  }
+  .chip--ok::before { background: var(--ok); box-shadow: 0 0 0 3px hsl(142 71% 45% / 18%); }
+
+  /* ---------------------------------------------- the rig ----------- */
+
+  .rig {
+    border-radius: var(--radius);
+    background:
+      linear-gradient(180deg, var(--sub-2) 0%, var(--sub-1) 42%);
+    box-shadow: var(--edge), var(--elev-3);
+    padding: 1rem 1.15rem 1.15rem;
+  }
+
+  .rig-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.85rem;
+  }
+
+  .trace-state {
+    display: inline-flex; align-items: center; gap: 0.55rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .trace-state .pip {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ink-3);
+    transition: background var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+  }
+  .trace-state[data-live="true"] { color: var(--signal-soft); }
+  .trace-state[data-live="true"] .pip {
+    background: var(--signal);
+    box-shadow: 0 0 0 3px hsl(41 87% 55% / 20%);
+  }
+
+  .keypick { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .keypick label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  select, button {
+    font-family: var(--font-display);
+    font-size: var(--fs-data);
+    color: var(--ink);
+    background: var(--sub-3);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-ctl);
+    /* 44px, the comfort target rather than the 24px AA minimum. These are
+       the only three things on the page a thumb has to hit. */
+    min-height: 44px;
+    padding: 0.5rem 0.9rem;
     cursor: pointer;
+    box-shadow: var(--edge);
+    transition:
+      background-color var(--fast) var(--ease),
+      border-color var(--fast) var(--ease),
+      box-shadow var(--fast) var(--ease),
+      transform var(--fast) var(--ease),
+      color var(--fast) var(--ease);
   }
-  button:hover, select:hover { border-color: var(--accent2); }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.primary { background: var(--accent); color: #06251b; border-color: var(--accent); font-weight: 600; }
-  button.stop { border-color: #f87171; color: #f87171; }
+  select:hover, button:hover { border-color: var(--line-2); background: #232937; }
+  button:hover { transform: translateY(-1px); box-shadow: var(--edge), var(--elev-2); }
+  button:active { transform: translateY(0); box-shadow: var(--edge); }
+  select:focus-visible, button:focus-visible, textarea:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+  button:disabled { opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: var(--edge); }
 
-  .stage {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    padding: 22px 24px; display: flex; flex-direction: column; gap: 18px;
+  button.primary {
+    background: linear-gradient(180deg, var(--signal-soft), var(--signal));
+    color: var(--signal-ink);
+    border-color: #c9930f;
+    font-weight: 650;
+  }
+  button.primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #ffd97a, var(--signal-soft));
+    box-shadow: var(--edge), var(--elev-2), 0 0 0 3px hsl(41 87% 55% / 16%);
+  }
+  button.ghost-alert { color: var(--alert); border-color: hsl(0 100% 71% / 34%); }
+  button.ghost-alert:hover:not(:disabled) { background: hsl(0 100% 71% / 9%); }
+
+  /* ---------------------------------------------- the scope --------- */
+  /* The plot IS the product: 10 horizontal lines are the scale's 10
+     quantization targets, and every note lands exactly on one of them.
+     That is the load-bearing musical claim — "there is no rhythm that
+     produces a wrong-sounding note" — made watchable instead of stated. */
+
+  .scope {
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0.5rem;
+    background: #0b0e14;
+    border-radius: var(--radius);
+    box-shadow: inset 0 0 0 1px var(--line), inset 0 12px 28px -20px #000;
+    padding: 0.75rem 0.85rem 0.6rem 0.6rem;
   }
 
-  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .toolbar .scaleRow { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: var(--fs-meta); }
-  .status { color: var(--dim); font-size: var(--fs-meta); margin-left: auto; }
-  /* A failure reason is a sentence, not a badge: give it the whole row and
-     the same red the Stop button already uses for "this ends sound". */
-  .status.error { flex-basis: 100%; margin-left: 0; text-align: left; color: #f87171; }
+  .scope-axis { position: relative; height: var(--scope-h); }
+  .axis-tick {
+    position: absolute; right: 0; transform: translateY(50%);
+    transition: bottom var(--slow) var(--ease);
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .axis-tick.is-correction { color: hsl(0 100% 71% / 65%); }
+
+  .scope-field {
+    position: relative;
+    height: var(--scope-h);
+    overflow: hidden;
+    border-radius: 6px;
+  }
+  .grid-line {
+    position: absolute; left: 0; right: 0; height: 1px;
+    background: var(--line);
+    transform: translateY(50%);
+    transition: bottom var(--slow) var(--ease), background var(--fast) var(--ease);
+  }
+  .grid-line.is-correction { background: hsl(0 100% 71% / 22%); }
+
+  /* The note. Height encodes nothing; the note's Y position IS the pitch,
+     which is the whole point. Size and opacity encode dwell (velocity),
+     the genuinely independent second signal. */
+  .note {
+    position: absolute;
+    width: 9px; height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    background: var(--note-c, var(--signal));
+    box-shadow: 0 0 0 1px hsl(222 60% 3% / 55%), 0 0 10px -1px var(--note-c, var(--signal));
+    will-change: transform, opacity;
+  }
+  .note.is-correction {
+    border-radius: 2px;
+    width: 8px; height: 8px;
+    margin: -4px 0 0 -4px;
+  }
+  .note-pop { animation: notePop 320ms var(--ease) both; }
+  @keyframes notePop {
+    from { transform: scale(0.2); opacity: 0; }
+    60%  { transform: scale(1.25); opacity: 1; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+
+  /* The contour line between consecutive notes. Drawn as one SVG polyline
+     so it is a single node no matter how many notes are on screen. */
+  .scope-contour { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .scope-contour polyline {
+    fill: none;
+    stroke: hsl(41 87% 55% / 26%);
+    stroke-width: 1.25;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .scope-empty {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+    color: var(--ink-3);
+  }
+
+  /* ---------------------------------------------- io + readout ------ */
+
+  .rig-io {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 15.5rem;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
 
   textarea#typingArea {
-    width: 100%; min-height: 10em; resize: vertical;
-    background: #0e1118; color: var(--ink); border: 1px solid var(--border);
-    border-radius: 10px; padding: 14px; font: inherit; font-size: var(--fs-body); line-height: 1.5;
+    width: 100%;
+    min-height: 8.25rem;
+    resize: vertical;
+    background: #0b0e14;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.85rem 0.95rem;
+    font-family: var(--font-mono);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    box-shadow: inset 0 1px 3px hsl(222 60% 3% / 45%);
+    transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
   }
-  textarea#typingArea:focus { outline: 2px solid var(--accent2); outline-offset: 1px; }
-
-  .timeline {
-    height: 96px; display: flex; align-items: flex-end; gap: 3px;
-    border-bottom: 1px solid var(--border); padding-bottom: 8px; overflow-x: auto;
+  textarea#typingArea::placeholder { color: var(--ink-3); }
+  textarea#typingArea:focus {
+    outline: none;
+    border-color: hsl(41 87% 55% / 55%);
+    box-shadow: inset 0 1px 3px hsl(222 60% 3% / 45%), 0 0 0 3px hsl(41 87% 55% / 14%);
   }
-  .note { flex: 0 0 auto; width: 7px; border-radius: 3px 3px 0 0; transition: transform 120ms ease; }
-  .note.pop { transform: scaleY(1.08); }
 
-  .stats { display: flex; justify-content: center; gap: 24px; color: var(--dim); font-size: var(--fs-meta); }
-  .stats b { color: var(--ink); font-weight: 600; }
-
-  .privacy {
-    width: min(720px, 92vw); color: var(--dim); font-size: var(--fs-meta); line-height: 1.6;
-    border-top: 1px solid var(--border); padding-top: 18px;
+  /* The live readout: the mapping's actual arithmetic on the last key you
+     pressed. This is what the page never showed — three counters that all
+     read zero told a visitor nothing about what the instrument does. */
+  .readout {
+    background: var(--sub-1);
+    border-radius: var(--radius);
+    box-shadow: var(--edge), inset 0 0 0 1px var(--line);
+    padding: 0.7rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
   }
-  .privacy strong { color: var(--accent); }
-  .privacy p { margin: 0 0 10px; }
-  .privacy a { color: var(--accent2); }
+  .readout h3 {
+    margin: 0 0 0.15rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .ro-row {
+    display: grid;
+    grid-template-columns: 4.4rem 1fr;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+    min-width: 0;
+  }
+  .ro-row dt { color: var(--ink-3); font-size: var(--fs-micro); letter-spacing: 0.04em; text-transform: uppercase; }
+  .ro-row dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .ro-row dd .unit { color: var(--ink-3); font-size: var(--fs-micro); margin-left: 0.15em; }
+  .ro-arrow { color: var(--signal); padding: 0 0.15em; }
+  .ro-bar {
+    height: 4px; border-radius: 999px; background: var(--sub-3); overflow: hidden; margin-top: 0.3rem;
+  }
+  .ro-bar > i {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--signal), var(--signal-soft));
+    transition: width var(--fast) var(--ease);
+  }
+  .readout dl { margin: 0; display: flex; flex-direction: column; gap: 0.4rem; }
 
+  /* ---------------------------------------------- transport --------- */
+
+  .transport {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    margin-top: 0.75rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--line);
+  }
+  .status {
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+    color: var(--ink-3);
+    margin-left: auto;
+  }
+  .status.error { color: var(--alert); flex-basis: 100%; margin-left: 0; order: 9; }
+  .counters { display: flex; gap: 1rem; font-family: var(--font-mono); font-size: var(--fs-data); color: var(--ink-3); }
+  .counters b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---------------------------------------------- mapping panels ---- */
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+    gap: 0.85rem;
+    margin-top: 0.85rem;
+  }
+
+  .panel {
+    background: var(--sub-1);
+    border-radius: var(--radius);
+    box-shadow: var(--edge), var(--elev-1);
+    padding: 0.95rem 1.05rem 1.05rem;
+    transition: box-shadow var(--slow) var(--ease), transform var(--slow) var(--ease);
+  }
+  .panel:hover { box-shadow: var(--edge), var(--elev-2); transform: translateY(-2px); }
+  .panel h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .panel .sub {
+    margin: 0.25rem 0 0.8rem;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    letter-spacing: 0.02em;
+    color: var(--ink-3);
+  }
+  .curve { width: 100%; height: 118px; display: block; }
+  .curve .axis { stroke: var(--line); stroke-width: 1; }
+  .curve .step { stroke: var(--signal); stroke-width: 2; fill: none; stroke-linejoin: round; }
+  .curve .ramp { stroke: var(--cool); stroke-width: 2; fill: none; }
+  .curve .ramp-fill { fill: hsl(199 100% 68% / 10%); stroke: none; }
+  .curve .lbl { fill: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
+
+  /* ---------------------------------------------- ledger ------------ */
+
+  .ledger { margin-top: 0.85rem; }
+  .ledger-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+  .fact {
+    background: var(--sub-1);
+    border-radius: var(--radius);
+    box-shadow: var(--edge), var(--elev-1);
+    padding: 0.8rem 0.9rem;
+    transition: box-shadow var(--slow) var(--ease), transform var(--slow) var(--ease);
+  }
+  .fact:hover { transform: translateY(-2px); box-shadow: var(--edge), var(--elev-2); }
+  .fact .n {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .fact .n.ok { color: var(--ok); }
+  .fact .k {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: var(--fs-micro);
+    letter-spacing: 0.02em;
+    color: var(--ink-3);
+  }
+
+  details {
+    background: var(--sub-1);
+    border-radius: var(--radius);
+    box-shadow: var(--edge), var(--elev-1);
+    margin-top: 0.5rem;
+    overflow: hidden;
+  }
+  summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.7rem 0.9rem;
+    font-size: var(--fs-body);
+    color: var(--ink-2);
+    display: flex; align-items: center; gap: 0.55rem;
+    transition: color var(--fast) var(--ease), background-color var(--fast) var(--ease);
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "";
+    width: 0; height: 0;
+    border-left: 5px solid var(--ink-3);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform var(--fast) var(--ease);
+    flex: none;
+  }
+  details[open] > summary::before { transform: rotate(90deg); }
+  summary:hover { color: var(--ink); background: var(--sub-2); }
+  details .body { padding: 0 0.9rem 0.9rem; color: var(--ink-2); font-size: var(--fs-body); }
+  details .body p { margin: 0 0 0.6rem; max-width: 74ch; }
+  details .body p:last-child { margin-bottom: 0; }
+  details .body code {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    background: #0b0e14;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0.1rem 0.35rem;
+  }
+  details .body ul { margin: 0 0 0.6rem; padding-left: 1.1rem; }
+  details .body li { margin-bottom: 0.25rem; }
+
+  a { color: var(--signal-soft); text-underline-offset: 0.15em;
+      transition: color var(--fast) var(--ease); }
+  a:hover { color: var(--signal); }
+
+  .cmd {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    background: #0b0e14;
+    box-shadow: inset 0 0 0 1px var(--line);
+    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+    color: var(--ink-2);
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0 0 0.6rem;
+  }
+  .cmd .out { color: var(--ok); }
+
+  footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-3);
+    font-size: var(--fs-data);
+  }
+
+  /* ---------------------------------------------- entrance ---------- */
+
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .rise   { animation: rise var(--slow) var(--ease) both; }
+  .rise-2 { animation-delay: 90ms; }
+  .rise-3 { animation-delay: 180ms; }
+  .rise-4 { animation-delay: 270ms; }
+
+  /* ---------------------------------------------- responsive -------- */
+
+  .scope { --scope-h: 232px; }
+
+  @media (max-width: 900px) {
+    .rig-io { grid-template-columns: minmax(0, 1fr); }
+    .readout { flex-direction: row; flex-wrap: wrap; gap: 0.55rem 1.5rem; }
+    .readout h3 { flex-basis: 100%; }
+    .readout dl { flex-direction: row; flex-wrap: wrap; gap: 0.5rem 1.4rem; }
+    .ro-row { grid-template-columns: 1fr; gap: 0.05rem; }
+  }
+
+  @media (max-width: 640px) {
+    .shell { width: min(1180px, 100% - 1.75rem); padding: 1.25rem 0 3rem; }
+    .masthead { margin-bottom: 1rem; }
+    h1 { font-size: 2.15rem; letter-spacing: -0.03em; }
+    .claim { max-width: none; font-size: 0.9375rem; margin-top: 0.7rem; }
+
+    /* The five provenance chips wrapped to four rows here — 270px of a
+       844px screen spent before the instrument even starts. One
+       scrolling row keeps every chip reachable and gives that space back
+       to the thing the page is actually for. */
+    .chips {
+      margin-top: 0.85rem;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      scroll-snap-type: x proximity;
+      padding-bottom: 0.15rem;
+      /* full-bleed so the row visibly runs off the edge, which is what
+         tells a thumb it can be scrolled */
+      margin-left: -0.875rem;
+      margin-right: -0.875rem;
+      padding-left: 0.875rem;
+      padding-right: 0.875rem;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { scroll-snap-align: start; }
+    .scope { --scope-h: 168px; grid-template-columns: 2.9rem 1fr; padding: 0.6rem 0.6rem 0.5rem 0.45rem; }
+    .rig { padding: 0.8rem 0.8rem 0.9rem; }
+    textarea#typingArea { min-height: 6.5rem; }
+    .transport { gap: 0.5rem; }
+    .status { margin-left: 0; flex-basis: 100%; order: 9; }
+    .counters { gap: 0.85rem; }
+  }
+
+  /* Motion here is decoration over a working instrument, so it all goes. */
   @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; animation: none !important; }
+    .rise { animation: none; }
+    .note-pop { animation: none; }
+    *, *::before, *::after {
+      transition-duration: 1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+    }
+    .panel:hover, button:hover { transform: none; }
   }
+
   /* attribution-kit v1 — the maker's mark inherits color; the pin takes the site's amber */
   .aj-attribution { margin: 0; font: inherit; line-height: 1.5; color: inherit; }
   .aj-attribution__mark { display: inline-block; width: 20px; height: 20px; vertical-align: -0.3em; margin-right: 0.45em; }
@@ -113,62 +704,207 @@
 </head>
 <body>
 
-<h1>carillon</h1>
-<p class="tagline">Type. The rhythm of your typing becomes sound, in this tab, nothing leaves your machine.</p>
+<div class="ambient" aria-hidden="true"></div>
 
-<main>
-  <div class="sound-gate" id="soundGate">
-    <p>Sound is off. Typing works either way — nothing plays until you turn it on.</p>
-    <div class="toolbar">
-      <button class="primary" id="startSound" type="button">Start sound</button>
-      <button class="stop" id="stopSound" type="button" disabled>Stop sound</button>
-      <span class="status" id="soundStatus" role="status" aria-live="polite">Sound is off.</span>
+<div class="shell">
+
+  <header class="masthead rise">
+    <p class="eyebrow"><span class="pip" aria-hidden="true"></span>carillon — keystroke rhythm sonifier</p>
+    <h1>No typing rhythm can produce a <em>wrong note</em>.</h1>
+    <p class="claim">
+      Pitch comes from the gap between your keys, loudness from how long you hold one.
+      Both are then snapped to the scale — which you can watch happen, below.
+    </p>
+    <ul class="chips">
+      <li class="chip chip--ok"><b><span id="netChip">0</span></b> requests since load · measured</li>
+      <li class="chip"><b><span data-prov="tests">63</span></b> tests passing</li>
+      <li class="chip"><b><span data-prov="degrees">10</span></b> quantization targets</li>
+      <li class="chip"><b><span data-prov="interval-range">40–900</span></b>ms interval range</li>
+      <li class="chip">no backend · no storage</li>
+    </ul>
+  </header>
+
+  <main>
+
+    <!-- ================= the instrument ================= -->
+    <section class="rig rise rise-2" aria-labelledby="rig-h">
+      <h2 id="rig-h" class="sr-only">The instrument</h2>
+
+      <div class="rig-head">
+        <span class="trace-state" id="traceState" data-live="false">
+          <span class="pip" aria-hidden="true"></span>
+          <span id="traceLabel">demo trace — a recorded rhythm, real mapping</span>
+        </span>
+        <span class="keypick">
+          <label for="scaleSel">key</label>
+          <select id="scaleSel">
+            <option value="majorPent" selected>C major pentatonic</option>
+            <option value="minorPent">A minor pentatonic</option>
+            <option value="dorian">D dorian</option>
+          </select>
+        </span>
+      </div>
+
+      <div class="scope">
+        <div class="scope-axis" id="scopeAxis" aria-hidden="true"></div>
+        <div class="scope-field" id="plot" role="img"
+             aria-label="Pitch-over-time plot. Every note lands on one of the scale's quantization lines.">
+        </div>
+      </div>
+
+      <div class="rig-io">
+        <textarea id="typingArea"
+          placeholder="Type here. Anything — a sentence, gibberish, a password you invent. The rhythm is the instrument, and every note it makes lands on a line above."
+          aria-label="Typing area"></textarea>
+
+        <div class="readout">
+          <h3>last keystroke</h3>
+          <dl>
+            <div class="ro-row">
+              <dt>interval</dt>
+              <dd><span id="roInterval">—</span><span class="unit">ms</span>
+                  <span class="ro-arrow" aria-hidden="true">→</span>
+                  <span id="roNote">—</span></dd>
+            </div>
+            <div class="ro-row">
+              <dt>pitch</dt>
+              <dd><span id="roFreq">—</span><span class="unit">Hz</span></dd>
+            </div>
+            <div class="ro-row">
+              <dt>dwell</dt>
+              <dd><span id="roDwell">—</span><span class="unit">ms</span></dd>
+            </div>
+            <div class="ro-row">
+              <dt>cutoff</dt>
+              <dd><span id="roCutoff">—</span><span class="unit">Hz</span>
+                  <span class="ro-bar" title="gain"><i id="roBar"></i></span></dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="primary" id="startSound" type="button">Start sound</button>
+        <button class="ghost-alert" id="stopSound" type="button" disabled>Stop</button>
+        <button id="clearBtn" type="button">Clear</button>
+        <span class="counters">
+          <span>notes <b id="statNotes">0</b></span>
+          <span>corrections <b id="statBackspaces">0</b></span>
+          <span>avg <b id="statAvg">–</b>ms</span>
+        </span>
+        <span class="status" id="soundStatus" role="status" aria-live="polite">Sound is off. Typing works either way.</span>
+      </div>
+    </section>
+
+    <!-- ================= how the two signals map ================= -->
+    <!-- Both figures are drawn at load from the real exported functions in
+         src/mapping.mjs, not traced by hand, so they cannot describe a
+         mapping the code does not implement. -->
+    <div class="grid-2">
+      <section class="panel rise rise-3">
+        <h2>Interval sets pitch</h2>
+        <p class="sub">
+          log-mapped, then snapped to <span data-prov="degrees">10</span> targets ·
+          <span data-prov="interval-range">40–900</span>ms
+        </p>
+        <div id="curveInterval"></div>
+      </section>
+
+      <section class="panel rise rise-4">
+        <h2>Dwell sets loudness &amp; brightness</h2>
+        <p class="sub">
+          <span data-prov="dwell-range">30–250</span>ms →
+          gain <span data-prov="velocity-range">0.35–1.00</span>,
+          cutoff <span data-prov="cutoff-range">900–4200</span>Hz
+        </p>
+        <div id="curveDwell"></div>
+      </section>
     </div>
-  </div>
 
-  <div class="stage" id="stage">
-    <div class="toolbar">
-      <label for="scaleSel">key</label>
-      <select id="scaleSel">
-        <option value="majorPent" selected>C major pentatonic (bright)</option>
-        <option value="minorPent">A minor pentatonic (moody)</option>
-        <option value="dorian">D dorian (open, modal)</option>
-      </select>
-      <button id="clearBtn" type="button">Clear</button>
-    </div>
+    <!-- ================= the ledger ================= -->
+    <section class="ledger rise rise-4" aria-labelledby="ledger-h">
+      <h2 id="ledger-h" class="sr-only">Provenance</h2>
 
-    <textarea id="typingArea" placeholder="Type here. Anything — a sentence, a password you make up, gibberish. The rhythm is the instrument." aria-label="Typing area"></textarea>
+      <div class="ledger-grid">
+        <div class="fact">
+          <span class="n ok">0</span>
+          <span class="k">network requests after load — checked, not asserted</span>
+        </div>
+        <div class="fact">
+          <span class="n"><span data-prov="tests">63</span></span>
+          <span class="k">tests, all passing</span>
+        </div>
+        <div class="fact">
+          <span class="n"><span data-prov="degrees">10</span>×<span data-prov="scales">3</span></span>
+          <span class="k">quantization targets across three keys</span>
+        </div>
+        <div class="fact">
+          <span class="n"><span data-prov="detune">7</span></span>
+          <span class="k">cents of detune between the two voices — chorus, not a beep</span>
+        </div>
+      </div>
 
-    <div class="timeline" id="timeline" aria-hidden="true"></div>
+      <details>
+        <summary>How the zero-request claim is enforced</summary>
+        <div class="body">
+          <code class="cmd">$ node verify.mjs .
+<span class="out">verify: OK — no network calls, external resources, or analytics identifiers found in .</span></code>
+          <p>
+            That checks the source. This checks the <em>running page</em>, live in your
+            browser right now, by reading its own Performance timeline:
+          </p>
+          <code class="cmd" id="netList">measuring…</code>
+          <p>
+            <code>verify.mjs</code> scans what ships — <code>index.html</code> plus everything
+            under <code>src/</code> — and exits non-zero on any of the three request-issuing
+            browser APIs, an <code>http(s)</code> resource, a CDN script tag, or a
+            telemetry-shaped identifier. It runs on every <code>npm test</code>. That is also
+            why this page carries no webfont: one would be a request, and the check would fail.
+            It is strict enough to have caught this very paragraph naming one of those APIs
+            out loud, which is the correct behaviour for a checker whose subject is the page's
+            own bytes.
+          </p>
+        </div>
+      </details>
 
-    <div class="stats">
-      <div>notes: <b id="statNotes">0</b></div>
-      <div>backspaces: <b id="statBackspaces">0</b></div>
-      <div>avg interval: <b id="statAvg">–</b> ms</div>
-    </div>
-  </div>
-</main>
+      <details>
+        <summary>What happens to your keystrokes</summary>
+        <div class="body">
+          <p>
+            Two numbers per key — time since the last key, and how long you held this one —
+            are read with <code>performance.now()</code> in this tab's memory, turned into a
+            pitch and a tone, and thrown away. Reload and every timing is gone. There is no
+            server, no storage, and no copy of what you typed anywhere but your own screen.
+          </p>
+        </div>
+      </details>
 
-<div class="privacy">
-  <h2>What this does with your keystrokes</h2>
-  <p>
-    <strong>Nothing you type here is transmitted, recorded, or stored anywhere.</strong>
-    Every key you press is timed in this browser tab's own memory — how long since
-    the last key, how long you held this one down — and those two numbers become a
-    pitch and a tone, right here, with the Web Audio API. This page makes no network
-    requests after it loads. Open your browser's network panel and watch: there is
-    nothing to see. Reload the page and every timing is gone. There is no server
-    behind this, no analytics, and no copy of what you typed anywhere but your own
-    screen while you're looking at it.
-  </p>
-  <p>
-    See <a href="https://github.com/jamessuuu/carillon/blob/main/README.md">README.md</a>
-    for exactly how the mapping works and what this does and does not claim.
-  </p>
-  <!-- attribution-kit v1 -->
-  <p class="aj-attribution">
-    <svg class="aj-attribution__mark" viewBox="0 0 32 32" width="20" height="20" role="img" aria-label="Agent James"><path fill="currentColor" d="M1 10h3v4H1zM28 10h3v4h-3zM10 1h4v3h-4zM10 28h4v3h-4zM1 18h3v4H1zM28 18h3v4h-3zM18 1h4v3h-4zM18 28h4v3h-4z"/><path fill="currentColor" fill-rule="evenodd" d="M5 4h22a1 1 0 0 1 1 1v22a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM18.3 9h3.4v8a5.7 5.7 0 0 1-5.7 5.7H12v-3.4h4a2.3 2.3 0 0 0 2.3-2.3z"/><rect x="6.5" y="6.5" width="3.5" height="3.5" fill="var(--aj-attribution-signal, #B45309)"/></svg>Built by <a href="https://agentjames.vercel.app" rel="me noopener">James Lorenz Santos</a><span class="aj-attribution__sep" aria-hidden="true">&middot;</span><a href="https://www.linkedin.com/in/james-lorenz-santos-720776251/" rel="me noopener" target="_blank">LinkedIn</a>
-  </p>
+      <details>
+        <summary>What this does not claim</summary>
+        <div class="body">
+          <ul>
+            <li>It is an instrument, not a biometric: nothing here identifies who is typing.</li>
+            <li>Tuned by ear against one person on one keyboard. No claim it suits everyone.</li>
+            <li>Physical keyboards only — on-screen keyboards do not produce comparable timing.</li>
+            <li><code>performance.now()</code> inside the event loop is not a real-time clock; under load, timing jitters by a few milliseconds.</li>
+          </ul>
+          <p>
+            Full method, limitations and the mapping's reasoning:
+            <a href="https://github.com/jamessuuu/carillon/blob/main/README.md">README.md</a>.
+          </p>
+        </div>
+      </details>
+    </section>
+
+  </main>
+
+  <footer>
+    <!-- attribution-kit v1 -->
+    <p class="aj-attribution">
+      <svg class="aj-attribution__mark" viewBox="0 0 32 32" width="20" height="20" role="img" aria-label="Agent James"><path fill="currentColor" d="M1 10h3v4H1zM28 10h3v4h-3zM10 1h4v3h-4zM10 28h4v3h-4zM1 18h3v4H1zM28 18h3v4h-3zM18 1h4v3h-4zM18 28h4v3h-4z"/><path fill="currentColor" fill-rule="evenodd" d="M5 4h22a1 1 0 0 1 1 1v22a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM18.3 9h3.4v8a5.7 5.7 0 0 1-5.7 5.7H12v-3.4h4a2.3 2.3 0 0 0 2.3-2.3z"/><rect x="6.5" y="6.5" width="3.5" height="3.5" fill="var(--aj-attribution-signal, #B45309)"/></svg>Built by <a href="https://agentjames.vercel.app" rel="me noopener">James Lorenz Santos</a><span class="aj-attribution__sep" aria-hidden="true">&middot;</span><a href="https://www.linkedin.com/in/james-lorenz-santos-720776251/" rel="me noopener" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
 </div>
 
 <script type="module" src="src/app.mjs"></script>

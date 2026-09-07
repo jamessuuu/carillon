@@ -1,0 +1,24 @@
+{
+  "generatedFrom": [
+    "src/mapping.mjs",
+    "src/audio.mjs",
+    "tests/",
+    "verify.mjs"
+  ],
+  "intervalMinMs": 40,
+  "intervalMaxMs": 900,
+  "dwellMinMs": 30,
+  "dwellMaxMs": 250,
+  "scaleCount": 3,
+  "degrees": 10,
+  "velocityMin": 0.35,
+  "velocityMax": 1,
+  "cutoffLoHz": 900,
+  "cutoffHiHz": 4200,
+  "detuneCents": 7,
+  "tests": 63,
+  "testsPass": 63,
+  "testsFail": 0,
+  "verifyOk": true,
+  "verifyLine": "verify: OK — no network calls, external resources, or analytics identifiers found in ."
+}

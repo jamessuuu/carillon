@@ -79,10 +79,23 @@ npm test
 ```
 
 This runs the test suite (`node --test`) and then `verify.mjs` against the
-real project. As of this writing that is 37 tests, all passing: 20 covering
-the pure rhythm-to-sound mapping in `src/mapping.mjs`, and 17 covering
-`verify.mjs` itself (its scan logic as a library, its CLI exit code, and that
-every fixture actually trips its intended rule).
+real project, and then `tools/provenance.mjs --check`. As of this writing
+that is 63 tests, all passing:
+
+| file | tests | covers |
+|---|---|---|
+| `tests/mapping.test.mjs` | 20 | the pure rhythm-to-sound mapping |
+| `tests/verify.test.mjs` | 17 | `verify.mjs` as a library, its CLI exit code, and that every fixture trips its intended rule |
+| `tests/audio.test.mjs` | 14 | Web Audio constructor resolution, including engines that ship none of it |
+| `tests/links.test.mjs` | 8 | every link resolves on the *deployed* surface, not just in the repo tree |
+| `tests/provenance.test.mjs` | 4 | every number printed on the page still matches the module it came from |
+
+That last file exists because this README used to claim "37 tests" while the
+suite ran 59. A hand-copied fact drifts. `tools/provenance.mjs` now reads the
+mapping's bounds, the quantization target count, the filter sweep and the
+suite size out of the source and writes them into `index.html`; the tests
+fail if the page and the modules disagree. The count in the table above is
+still hand-written, and is the one number here a machine does not check.
 
 ## Limitations
 
@@ -123,8 +136,11 @@ invalid), so the reasoning lives here instead:
 - `/` &rarr; `index.html`, the real, working app. Nothing about it moved.
 - `/site` &rarr; `site/index.html`, the landing page, in the same
   proofpage-derived template as this project's siblings.
-- `/README.md` stays reachable too, because the app's own privacy section
-  links to it (`<a href="README.md">`), and that link would otherwise break.
+- `README.md` is *not* deployed (it is in `.vercelignore`). The app links to
+  it by its GitHub URL on the default branch instead, which is what
+  `tests/links.test.mjs` asserts: a bare `href="README.md"` answered 404 on
+  the live site in the 2026-09-06 sweep, because the deploy surface and the
+  repo tree are not the same thing.
 - Everything else in the repo (`src/`, `verify.mjs`, `tests/`, `LICENSE`,
   `package.json`) is also served as plain static files under this setting.
   None of it is sensitive; it is all source a stranger is meant to be able
